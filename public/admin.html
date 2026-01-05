@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>APEX ADMIN</title>
+    <style>
+        body { background: #111; color: white; font-family: monospace; padding: 20px; }
+        .card { background: #222; padding: 15px; margin-bottom: 10px; border: 1px solid #444; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; }
+        .btn { background: #00e676; border: none; padding: 10px 20px; cursor: pointer; font-weight: bold; border-radius: 5px; }
+        h1 { color: #d4af37; }
+    </style>
+</head>
+<body>
+    <h1>APEX FINANCE CONTROLS</h1>
+    <div id="list">Загрузка заявок...</div>
+
+    <script>
+        function load() {
+            fetch('/api/admin/transactions').then(r => r.json()).then(data => {
+                const list = document.getElementById('list');
+                list.innerHTML = '';
+                if(data.length === 0) list.innerHTML = 'Нет новых заявок';
+                data.forEach(item => {
+                    list.innerHTML += `
+                        <div class="card">
+                            <div>
+                                <b>ID Игрока:</b> ${item.userId}<br>
+                                <b>Сумма:</b> ${item.amount} UZS<br>
+                                <small>${item.method} | ${item.date}</small>
+                            </div>
+                            <button class="btn" onclick="approve(${item.id}, ${item.userId}, ${item.amount})">ОДОБРИТЬ</button>
+                        </div>
+                    `;
+                });
+            });
+        }
+        function approve(id, userId, amount) {
+            if(!confirm('Зачислить деньги?')) return;
+            fetch('/api/admin/approve', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ transactionId: id, userId, amount })
+            }).then(() => { alert('Успешно!'); load(); });
+        }
+        setInterval(load, 5000); // Авто-обновление раз в 5 сек
+        load();
+    </script>
+</body>
+</html>
