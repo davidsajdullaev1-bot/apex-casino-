@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>APEX | Premium Casino</title>
+    <style>
+        :root { --bg: #050b14; --gold: #d4af37; --panel: #111; }
+        body { margin: 0; background: var(--bg); color: white; font-family: sans-serif; overflow: hidden; }
+        
+        /* UI */
+        .header { display: flex; justify-content: space-between; padding: 15px; background: rgba(0,0,0,0.8); border-bottom: 1px solid #333; }
+        .logo { font-weight: 900; color: var(--gold); letter-spacing: 2px; }
+        .balance-box { text-align: right; }
+        .balance { color: var(--gold); font-weight: bold; font-size: 18px; }
+        .username { font-size: 12px; color: #777; }
+
+        /* ИГРА */
+        .game-area { height: 60vh; position: relative; display: flex; justify-content: center; align-items: center; background: radial-gradient(circle, #1b2735, #050b14); }
+        .drone { width: 60px; height: 30px; background: #222; border: 2px solid var(--gold); position: absolute; box-shadow: 0 0 20px var(--gold); transition: transform 0.1s linear; border-radius: 4px; z-index: 10; }
+        .drone::after { content:''; position:absolute; top:-10px; left:10%; width:80%; height:2px; background:cyan; animation: spin 0.1s infinite; }
+        @keyframes spin { from{opacity:0.3} to{opacity:1} }
+        
+        .mult { font-size: 60px; font-weight: 900; z-index: 5; text-shadow: 0 0 20px black; }
+        .graph-line { position: absolute; bottom: 0; left: 0; width: 100%; height: 100%; opacity: 0.3; background: linear-gradient(transparent 95%, var(--gold) 100%); }
+
+        /* КНОПКИ */
+        .controls { padding: 20px; background: var(--panel); height: 40vh; border-top: 1px solid var(--gold); }
+        .btn { width: 100%; padding: 15px; font-size: 20px; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; margin-bottom: 10px; }
+        .btn-bet { background: linear-gradient(45deg, #b8860b, var(--gold)); color: black; }
+        .btn-deposit { background: #007bff; color: white; font-size: 16px; padding: 10px; margin-top: 5px; }
+
+        /* МОДАЛЬНОЕ ОКНО */
+        #modal { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.9); z-index: 100; }
+        .modal-content { background: #222; margin: 20% auto; padding: 20px; width: 80%; border-radius: 10px; border: 1px solid var(--gold); }
+        input, select { width: 90%; padding: 10px; margin: 10px 0; background: #111; border: 1px solid #444; color: white; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div class="logo">APEX</div>
+    <div class="balance-box">
+        <div class="balance" id="balance">0.00 UZS</div>
+        <div class="username" id="userDisplay">Гость</div>
+        <button class="btn-deposit" onclick="openModal()">+ Пополнить</button>
+    </div>
+</div>
+
+<div class="game-area">
+    <div class="graph-line"></div>
+    <div class="mult" id="mult">1.00x</div>
+    <div class="drone" id="drone"></div>
+</div>
+
+<div class="controls">
+    <button class="btn btn-bet" id="actionBtn">СТАВКА (1000 UZS)</button>
+</div>
+
+<div id="modal">
+    <div class="modal-content">
+        <h3 style="color:var(--gold)">Пополнение баланса</h3>
+        <select id="payMethod">
+            <option value="uzcard">UzCard / Humo</option>
+            <option value="crypto">USDT (TRC20)</option>
+        </select>
+        <input type="number" id="payAmount" placeholder="Сумма (мин 10000)">
+        <p style="font-size:12px; color:#aaa">Переведите на карту <b>8600 0000 0000 0000</b> и нажмите кнопку:</p>
+        <button class="btn btn-bet" onclick="deposit()">Я ОПЛАТИЛ</button>
+        <button class="btn" style="background:transparent; color:#aaa" onclick="document.getElementById('modal').style.display='none'">Отмена</button>
+    </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+    const socket = io();
+    let user = null;
+
+    // 1. АВТОРИЗАЦИЯ
+    const savedName = localStorage.getItem('apex_user');
+    const name = savedName || prompt("Введите ваше имя для игры:", "Player1");
+    if(name) {
+        localStorage.setItem('apex_user', name);
+        fetch('/api/login', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ username: name })
+        }).then(r => r.json()).then(u => {
+            user = u;
+            document.getElementById('userDisplay').innerText = user.username;
+            document.getElementById('balance').innerText = user.balance.toFixed(2) + ' UZS';
+        });
+    }
+
+    // 2. ИГРА (Анимация)
+    const drone = document.getElementById('drone');
+    const multText = document.getElementById('mult');
+
+    socket.on('tick', (data) => {
+        multText.innerText = data.multiplier + 'x';
+        multText.style.color = 'white';
+        let val = parseFloat(data.multiplier);
+        let x = Math.min((val - 1) * 50, window.innerWidth - 80);
+        let y = Math.min((val - 1) * 30, 150);
+        drone.style.transform = `translate(${x}px, -${y}px)`;
+    });
+
+    socket.on('crash', (data) => {
+        multText.innerText = 'CRASH ' + data.value;
+        multText.style.color = 'red';
+        drone.style.filter = 'grayscale(100%)';
+    });
+
+    socket.on('game_start', () => {
+        drone.style.transform = 'translate(0,0)';
+        drone.style.filter = 'none';
+        multText.innerText = '1.00x';
+        multText.style.color = 'white';
+    });
+
+    // 3. ФИНАНСЫ (Обновление баланса)
+    socket.on('balance_update', (data) => {
+        if(user && user.id === data.userId) {
+            user.balance += data.added;
+            document.getElementById('balance').innerText = user.balance.toFixed(2) + ' UZS';
+            alert('Ваш баланс пополнен на ' + data.added);
+        }
+    });
+
+    function openModal() { document.getElementById('modal').style.display='block'; }
+    
+    function deposit() {
+        const amt = document.getElementById('payAmount').value;
+        const met = document.getElementById('payMethod').value;
+        if(!amt) return alert('Введите сумму');
+        
+        fetch('/api/deposit', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ userId: user.id, amount: amt, method: met })
+        }).then(r => r.json()).then(res => {
+            alert(res.message);
+            document.getElementById('modal').style.display='none';
+        });
+    }
+</script>
+</body>
+</html>
