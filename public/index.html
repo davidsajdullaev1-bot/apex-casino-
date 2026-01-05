@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>APEX | Premium Casino</title>
+    <style>
+        :root {
+            --bg-dark: #050b14;
+            --gold: #d4af37;
+            --gold-glow: rgba(212, 175, 55, 0.5);
+            --glass: rgba(255, 255, 255, 0.05);
+        }
+        body { margin: 0; background: var(--bg-dark); color: white; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
+        
+        /* Верхняя панель */
+        .header { display: flex; justify-content: space-between; padding: 15px 20px; background: rgba(0,0,0,0.4); border-bottom: 1px solid #333; }
+        .logo { font-size: 24px; font-weight: 900; letter-spacing: 2px; background: linear-gradient(to right, #fff, var(--gold)); -webkit-background-clip: text; color: transparent; }
+        .balance { font-family: monospace; font-size: 18px; color: var(--gold); text-shadow: 0 0 10px var(--gold-glow); }
+
+        /* Игровое поле */
+        .game-area { position: relative; height: 70vh; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle at center, #1b2735 0%, #050b14 70%); }
+        
+        /* Сетка как в Троне */
+        .grid { position: absolute; width: 200%; height: 100%; bottom: -50%; background: linear-gradient(transparent 0%, rgba(212, 175, 55, 0.1) 1px, transparent 2px), linear-gradient(90deg, transparent 0%, rgba(212, 175, 55, 0.1) 1px, transparent 2px); background-size: 40px 40px; transform: perspective(300px) rotateX(60deg); opacity: 0.3; }
+
+        /* ДРОН */
+        .drone-box { position: absolute; transition: transform 0.1s linear; }
+        .drone { width: 60px; height: 30px; background: #111; border: 2px solid var(--gold); border-radius: 5px; box-shadow: 0 0 15px var(--gold); position: relative; }
+        .drone::after { content: ''; position: absolute; top: -10px; left: 5px; width: 50px; height: 2px; background: cyan; animation: spin 0.1s infinite; }
+        
+        @keyframes spin { 0% { opacity: 0.5; } 100% { opacity: 1; } }
+
+        .multiplier { font-size: 80px; font-weight: bold; z-index: 10; text-shadow: 0 0 20px rgba(0,0,0,0.8); }
+
+        /* Панель управления */
+        .controls { height: 30vh; background: #111; padding: 20px; border-top: 2px solid var(--gold); display: flex; flex-direction: column; gap: 10px; }
+        .btn { width: 100%; padding: 15px; font-size: 20px; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; text-transform: uppercase; }
+        .btn-bet { background: linear-gradient(45deg, var(--gold), #b8860b); color: black; box-shadow: 0 0 15px var(--gold-glow); }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div class="logo">APEX</div>
+    <div class="balance">1,500.00 UZS</div>
+</div>
+
+<div class="game-area">
+    <div class="grid"></div>
+    <div class="multiplier" id="mult">1.00x</div>
+    
+    <div class="drone-box" id="drone" style="transform: translate(0,0);">
+        <div class="drone"></div>
+    </div>
+</div>
+
+<div class="controls">
+    <button class="btn btn-bet" id="actionBtn">СТАВКА</button>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+    const socket = io();
+    const drone = document.getElementById('drone');
+    const multText = document.getElementById('mult');
+    
+    socket.on('tick', (data) => {
+        multText.innerText = data.multiplier + 'x';
+        multText.style.color = 'white';
+        // Анимация полета
+        let val = parseFloat(data.multiplier);
+        let x = (val - 1) * 50; 
+        let y = (val - 1) * 30;
+        if(x > window.innerWidth/2) x = window.innerWidth/2; // Ограничение экрана
+        if(y > 200) y = 200;
+        
+        drone.style.transform = `translate(${x}px, -${y}px)`;
+    });
+
+    socket.on('crash', (data) => {
+        multText.innerText = 'CRASH ' + data.value;
+        multText.style.color = '#ff3333';
+        drone.style.filter = 'grayscale(100%)';
+    });
+
+    socket.on('game_start', () => {
+        drone.style.filter = 'none';
+        drone.style.transform = 'translate(0,0)';
+        multText.innerText = '1.00x';
+    });
+</script>
+
+</body>
+</html>
